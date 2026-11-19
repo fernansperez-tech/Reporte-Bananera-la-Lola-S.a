@@ -9,17 +9,17 @@ st.set_page_config(page_title="Bananera La Lola S.A. - Labores", layout="wide", 
 
 ADMIN_PASSWORD = st.secrets.get("admin_password", "Admin2026*")
 
-COLS_REGISTROS = ["ID_Registro", "Fecha", "Año", "Mes", "Coordinador", "Cedula", "Empleado", "Labor", "Tipo_Parametro", "Observaciones", "Hora_Registro"]
+COLS_REGISTROS = [
+    "ID_Registro", "Fecha", "Año", "Mes", "Coordinador", "Cedula", "Empleado",
+    "Lote", "Labor", "Cantidad", "Unidad", "Horas", "Tipo_Parametro", "Observaciones", "Hora_Registro"
+]
 COLS_EMPLEADOS = ["Cedula", "Nombre", "Coordinador", "Cargo_Area", "Estado"]
-COLS_LABORES = ["Nombre_Labor", "Tipo_Parametro", "Estado"]
+COLS_LABORES = ["Nombre_Labor", "Unidad_Medida", "Tipo_Parametro", "Estado"]
 
 def conectar_sheets():
     creds_dict = dict(st.secrets["gcp_service_account"])
     client = gspread.service_account_from_dict(creds_dict)
     return client.open_by_key("10rnbMgxL0L53tyqdF9klViPiLTxejQidd0rUmC2HqPQ")
-    creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
-    client = gspread.authorize(creds)
-    return client.open("Reporte_Labores_DB")
 
 def leer_pestana(nombre_pestana, columnas_default):
     try:
@@ -30,7 +30,6 @@ def leer_pestana(nombre_pestana, columnas_default):
             return pd.DataFrame(columns=columnas_default)
         encabezados = filas
         datos = filas[1:]
-        # Ajustar filas si tienen menos columnas que los encabezados
         datos_norm = [fila + [""] * (len(encabezados) - len(fila)) for fila in datos]
         df = pd.DataFrame(datos_norm, columns=encabezados)
         for col in columnas_default:
@@ -40,6 +39,7 @@ def leer_pestana(nombre_pestana, columnas_default):
     except Exception as e:
         st.error(f"Error leyendo '{nombre_pestana}': {e}")
         return pd.DataFrame(columns=columnas_default)
+
 def sobrescribir_pestana(nombre_pestana, df):
     try:
         sheet = conectar_sheets()
@@ -79,7 +79,7 @@ perfil = st.sidebar.radio(
 )
 
 if perfil == "👷 1. Reporte Coordinadores":
-    st.title("👷 Reporte Diario de Labores")
+    st.title("👷 Reporte Diario de Labores y Rendimiento")
     empleados_activos = df_empleados[df_empleados["Estado"] == "Activo"] if not df_empleados.empty else pd.DataFrame()
     labores_activas = df_labores[df_labores["Estado"] == "Activa"] if not df_labores.empty else pd.DataFrame()
 
@@ -103,6 +103,7 @@ if perfil == "👷 1. Reporte Coordinadores":
         mis_empleados = empleados_activos[empleados_activos["Coordinador"] == coordinador]
         opciones_labores = labores_activas["Nombre_Labor"].tolist()
         mapa_parametros = dict(zip(labores_activas["Nombre_Labor"], labores_activas["Tipo_Parametro"]))
+        mapa_unidades = dict(zip(labores_activas["Nombre_Labor"], labores_activas["Unidad_Medida"]))
 
         with st.form("form_reporte_diario"):
             registros_pendientes = []
@@ -110,17 +111,33 @@ if perfil == "👷 1. Reporte Coordinadores":
                 ced = str(emp["Cedula"])
                 nom = emp["Nombre"]
                 cargo = emp["Cargo_Area"]
-                c1, c2, c3 = st.columns([2.2, 2, 2])
                 estado_previo = "✅ Ya reportado" if ced in ya_reportados else "⏳ Pendiente"
+                
+                st.markdown(f"**{nom}** (`{ced}`) — *{cargo}* | {estado_previo}")
+                c1, c2, c3, c4, c5 = st.columns([1.2, 2, 1.1, 1.1, 1.8])
                 with c1:
-                    st.markdown(f"**{nom}** (`{ced}`)  \n*{cargo}* | {estado_previo}")
+                    lote_sel = st.text_input("Lote", placeholder="Ej: Lote 4", key=f"lote_{ced}")
                 with c2:
-                    labor_sel = st.selectbox(f"Labor {ced}", opciones_labores, key=f"lab_{ced}", label_visibility="collapsed")
+                    labor_sel = st.selectbox("Labor", opciones_labores, key=f"lab_{ced}")
                 with c3:
-                    obs_sel = st.text_input("Observación", placeholder="Novedad opcional...", key=f"obs_{ced}", label_visibility="collapsed")
+                    cant_sel = st.number_input("Cantidad / Rend.", min_value=0.0, step=1.0, value=0.0, key=f"cant_{ced}")
+                with c4:
+                    horas_sel = st.number_input("Horas Lab.", min_value=0.0, max_value=24.0, step=0.5, value=8.0, key=f"hrs_{ced}")
+                with c5:
+                    obs_sel = st.text_input("Observación", placeholder="Novedad...", key=f"obs_{ced}")
+                
+                unidad_auto = mapa_unidades.get(labor_sel, "")
+                param_auto = mapa_parametros.get(labor_sel, "Laborado")
+                # Si es ausencia, poner horas en 0 automáticamente si dejaron 8 por defecto
+                if "Ausencia" in param_auto or "Descanso" in param_auto:
+                    horas_final = 0.0
+                else:
+                    horas_final = horas_sel
+
                 registros_pendientes.append({
-                    "cedula": ced, "nombre": nom, "labor": labor_sel,
-                    "parametro": mapa_parametros.get(labor_sel, "Laborado"), "obs": obs_sel
+                    "cedula": ced, "nombre": nom, "lote": lote_sel, "labor": labor_sel,
+                    "cantidad": cant_sel, "unidad": unidad_auto, "horas": horas_final,
+                    "parametro": param_auto, "obs": obs_sel
                 })
                 st.divider()
 
@@ -132,7 +149,8 @@ if perfil == "👷 1. Reporte Coordinadores":
                         id_unico = str(uuid.uuid4())[:8].upper()
                         nuevas_filas.append([
                             id_unico, fecha_str, fecha_reporte.year, fecha_reporte.month,
-                            coordinador, item["cedula"], item["nombre"], item["labor"],
+                            coordinador, item["cedula"], item["nombre"], item["lote"],
+                            item["labor"], item["cantidad"], item["unidad"], item["horas"],
                             item["parametro"], item["obs"], hora_actual
                         ])
                 if nuevas_filas:
@@ -187,7 +205,7 @@ elif perfil == "🗂️ 2. Control Secretaría":
     )
 
 elif perfil == "📊 3. Recursos Humanos":
-    st.title("📊 Analítica de Recursos Humanos y Ausentismo")
+    st.title("📊 Analítica de Recursos Humanos, Rendimiento y Ausentismo")
     if df_registros.empty:
         st.warning("Aún no hay datos registrados en el sistema.")
     else:
@@ -205,13 +223,16 @@ elif perfil == "📊 3. Recursos Humanos":
             params = ["Todos"] + sorted(df_registros["Tipo_Parametro"].unique().tolist())
             sel_param = st.selectbox("Parámetro / Tipo:", params)
 
-        f5, f6, f7 = st.columns(3)
+        f5, f6, f7, f8 = st.columns(4)
         with f5:
             labores_list = ["Todas"] + sorted(df_registros["Labor"].unique().tolist())
             sel_labor = st.selectbox("Labor específica:", labores_list)
         with f6:
-            buscar_emp = st.text_input("Buscar empleado (Nombre o Cédula):")
+            lotes_list = ["Todos"] + sorted([x for x in df_registros["Lote"].unique().tolist() if str(x).strip() != ""])
+            sel_lote = st.selectbox("Lote:", lotes_list)
         with f7:
+            buscar_emp = st.text_input("Buscar empleado (Nombre/Cédula):")
+        with f8:
             usar_fecha = st.checkbox("Filtrar por día exacto")
             fecha_exacta = st.date_input("Día específico:", disabled=not usar_fecha)
 
@@ -226,6 +247,8 @@ elif perfil == "📊 3. Recursos Humanos":
             df_filtrado = df_filtrado[df_filtrado["Tipo_Parametro"] == sel_param]
         if sel_labor != "Todas":
             df_filtrado = df_filtrado[df_filtrado["Labor"] == sel_labor]
+        if sel_lote != "Todos":
+            df_filtrado = df_filtrado[df_filtrado["Lote"] == sel_lote]
         if buscar_emp:
             df_filtrado = df_filtrado[
                 df_filtrado["Empleado"].str.contains(buscar_emp, case=False, na=False) |
@@ -234,17 +257,22 @@ elif perfil == "📊 3. Recursos Humanos":
         if usar_fecha:
             df_filtrado = df_filtrado[df_filtrado["Fecha"] == fecha_exacta.strftime("%Y-%m-%d")]
 
+        df_filtrado["Cantidad_Num"] = pd.to_numeric(df_filtrado["Cantidad"], errors="coerce").fillna(0)
+        df_filtrado["Horas_Num"] = pd.to_numeric(df_filtrado["Horas"], errors="coerce").fillna(0)
+
         st.divider()
-        k1, k2, k3 = st.columns(3)
+        k1, k2, k3, k4 = st.columns(4)
         total_reg = len(df_filtrado)
         total_aus = len(df_filtrado[df_filtrado["Tipo_Parametro"].str.contains("Ausencia", case=False, na=False)])
-        total_lab = len(df_filtrado[df_filtrado["Tipo_Parametro"] == "Laborado"])
+        total_cant = df_filtrado["Cantidad_Num"].sum()
+        total_hrs = df_filtrado["Horas_Num"].sum()
 
-        k1.metric("Total Registros", total_reg)
-        k2.metric("Días Laborados", total_lab)
-        k3.metric("Total Ausencias", total_aus)
+        k1.metric("Registros Filtrados", total_reg)
+        k2.metric("Total Ausencias", total_aus)
+        k3.metric("Suma Cantidad / Rend.", f"{total_cant:,.1f}")
+        k4.metric("Total Horas Laboradas", f"{total_hrs:,.1f} hrs")
 
-        df_export = df_filtrado.drop(columns=["ID_Registro"], errors="ignore")
+        df_export = df_filtrado.drop(columns=["ID_Registro", "Cantidad_Num", "Horas_Num"], errors="ignore")
         st.dataframe(df_export, use_container_width=True, hide_index=True)
 
         buffer_rrhh = io.BytesIO()
@@ -263,7 +291,7 @@ elif perfil == "⚙️ 4. Administración (Admin)":
     if clave != ADMIN_PASSWORD:
         st.info("🔒 Ingrese la contraseña para gestionar empleados, labores y registros.")
     else:
-        tab_emp, tab_lab, tab_reg = st.tabs(["👥 Gestión de Empleados", "🛠️ Gestión de Labores", "📝 Modificar / Eliminar Registros"])
+        tab_emp, tab_lab, tab_reg = st.tabs(["👥 Gestión de Empleados", "🛠️ Gestión de Labores y Unidades", "📝 Modificar / Eliminar Registros"])
 
         with tab_emp:
             st.subheader("➕ Agregar Nuevo Empleado")
@@ -272,7 +300,7 @@ elif perfil == "⚙️ 4. Administración (Admin)":
                 nueva_ced = c1.text_input("Cédula / ID *")
                 nuevo_nom = c2.text_input("Nombre Completo *")
                 nuevo_coord = c3.text_input("Coordinador Asignado *")
-                nuevo_cargo = c4.text_input("Cargo / Lote / Área")
+                nuevo_cargo = c4.text_input("Cargo / Finca / Área")
                 if st.form_submit_button("Agregar Empleado", type="primary"):
                     if nueva_ced and nuevo_nom and nuevo_coord:
                         if not df_empleados.empty and nueva_ced in df_empleados["Cedula"].astype(str).values:
@@ -297,14 +325,15 @@ elif perfil == "⚙️ 4. Administración (Admin)":
                     st.rerun()
 
         with tab_lab:
-            st.subheader("➕ Crear Nueva Labor y su Parámetro")
+            st.subheader("➕ Crear Nueva Labor y Unidad de Rendimiento")
             with st.form("form_nueva_labor"):
-                c1, c2 = st.columns(2)
-                nombre_lab = c1.text_input("Nombre de la Labor o Novedad *")
-                param_lab = c2.selectbox("Parámetro RRHH *", ["Laborado", "Ausencia Injustificada", "Ausencia Justificada", "Descanso / Vacaciones"])
+                c1, c2, c3 = st.columns(3)
+                nombre_lab = c1.text_input("Nombre de la Labor o Novedad *", placeholder="Ej: Corte / Embolse / Deshije")
+                unidad_lab = c2.text_input("Unidad de Medida *", placeholder="Ej: Racimos, Hectáreas, Fundas, Jornal")
+                param_lab = c3.selectbox("Parámetro RRHH *", ["Laborado", "Ausencia Injustificada", "Ausencia Justificada", "Descanso / Vacaciones"])
                 if st.form_submit_button("Crear Labor", type="primary"):
                     if nombre_lab:
-                        agregar_filas("Labores", [[nombre_lab.strip(), param_lab, "Activa"]])
+                        agregar_filas("Labores", [[nombre_lab.strip(), unidad_lab.strip(), param_lab, "Activa"]])
                         st.success("✅ Labor agregada al catálogo.")
                         st.rerun()
                     else:
@@ -356,4 +385,3 @@ elif perfil == "⚙️ 4. Administración (Admin)":
                     if sobrescribir_pestana("Registros", df_final_guardar):
                         st.success("✅ Registros actualizados permanentemente.")
                         st.rerun()
-
