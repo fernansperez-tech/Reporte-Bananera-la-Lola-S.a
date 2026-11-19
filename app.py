@@ -25,10 +25,12 @@ def leer_pestana(nombre_pestana, columnas_default):
     try:
         sheet = conectar_sheets()
         ws = sheet.worksheet(nombre_pestana)
-        datos = ws.get_all_records()
-        if not datos:
+        filas = ws.get_all_values()
+        if len(filas) <= 1:
             return pd.DataFrame(columns=columnas_default)
-        df = pd.DataFrame(datos)
+        encabezados = filas[0]
+        datos = filas[1:]
+        df = pd.DataFrame(datos, columns=encabezados)
         for col in columnas_default:
             if col not in df.columns:
                 df[col] = ""
