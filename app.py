@@ -403,7 +403,7 @@ elif perfil == "⚙️ 4. Administración (Admin)":
                 key="editor_empleados"
             )
 
-            )
+            
             if st.button("💾 Guardar Cambios en Empleados", type="primary"):
                 if sobrescribir_pestana("Empleados", df_emp_editado):
                     st.success("✅ Base de datos de empleados actualizada.")
