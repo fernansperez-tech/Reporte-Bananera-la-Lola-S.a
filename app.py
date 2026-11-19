@@ -30,14 +30,15 @@ def leer_pestana(nombre_pestana, columnas_default):
         filas = ws.get("A1:Z2000")
         if not filas or len(filas) <= 1:
             return pd.DataFrame(columns=columnas_default)
-        encabezados = filas
+        encabezados = [str(h).strip() for h in filas[0]]
         datos = filas[1:]
         datos_norm = [fila + [""] * (len(encabezados) - len(fila)) for fila in datos]
         df = pd.DataFrame(datos_norm, columns=encabezados)
+        df = df.loc[:, ~df.columns.duplicated()].copy()
         for col in columnas_default:
             if col not in df.columns:
                 df[col] = ""
-        return df[columnas_default]
+        return df[columnas_default].astype(str)
     except Exception as e:
         st.error(f"Error leyendo '{nombre_pestana}': {e}")
         return pd.DataFrame(columns=columnas_default)
