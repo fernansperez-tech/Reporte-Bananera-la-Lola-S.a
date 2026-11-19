@@ -25,12 +25,14 @@ def leer_pestana(nombre_pestana, columnas_default):
     try:
         sheet = conectar_sheets()
         ws = sheet.worksheet(nombre_pestana)
-        filas = ws.get_all_values()
-        if len(filas) <= 1:
+        filas = ws.get("A1:Z2000")
+        if not filas or len(filas) <= 1:
             return pd.DataFrame(columns=columnas_default)
-        encabezados = filas[0]
+        encabezados = filas
         datos = filas[1:]
-        df = pd.DataFrame(datos, columns=encabezados)
+        # Ajustar filas si tienen menos columnas que los encabezados
+        datos_norm = [fila + [""] * (len(encabezados) - len(fila)) for fila in datos]
+        df = pd.DataFrame(datos_norm, columns=encabezados)
         for col in columnas_default:
             if col not in df.columns:
                 df[col] = ""
@@ -38,7 +40,6 @@ def leer_pestana(nombre_pestana, columnas_default):
     except Exception as e:
         st.error(f"Error leyendo '{nombre_pestana}': {e}")
         return pd.DataFrame(columns=columnas_default)
-
 def sobrescribir_pestana(nombre_pestana, df):
     try:
         sheet = conectar_sheets()
