@@ -126,8 +126,7 @@ if perfil == "👷 1. Reporte Coordinadores":
                     ]
                     if not match.empty:
                        st.session_state.coord_logueado = match["Nombre_Coordinador"].values[0]
-
-                        st.rerun()
+                       st.rerun()
                     else:
                         st.error("❌ Usuario o contraseña incorrectos, o coordinador inactivo.")
                 else:
