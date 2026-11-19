@@ -181,50 +181,34 @@ if perfil == "👷 1. Reporte Coordinadores":
                 except ValueError:
                     mapa_meta[r["Nombre_Labor"]] = 0.0
 
-            registros_pendientes = []
-
-            for _, emp in empleados_activos.iterrows():
-                ced = str(emp["Cedula"])
-                nom = emp["Nombre"]
-                cargo = emp["Cargo_Area"] if str(emp["Cargo_Area"]).strip() else "Operario"
-                esta_reportado = ced in ya_reportados
-
-                # Tarjeta visual moderna por cada trabajador
-                with st.container(border=True):
-                    top_izq, top_der = st.columns([3.5, 1.2])
-                    with top_izq:
-                        st.markdown(f"<div class='emp-header'>👤 {nom}</div>", unsafe_allow_html=True)
-                        st.markdown(f"<div class='emp-sub'>🪪 C.C. {ced} &nbsp;|&nbsp; 🌱 {cargo}</div>", unsafe_allow_html=True)
-                    with top_der:
-                        if esta_reportado:
-                            st.success("✅ Reportado", icon="✔️")
-                        else:
-                            st.warning("⏳ Pendiente")
-
-                    st.write("")
-                    c1, c2, c3, c4, c5 = st.columns([1.1, 2.1, 1.3, 1.1, 1.8])
-                    with c1:
-                        lote_sel = st.text_input("📍 Lote", placeholder="Ej: Lote 4", key=f"lote_{ced}", disabled=esta_reportado)
-                    with c2:
-                        labor_sel = st.selectbox("🛠️ Labor asignada", opciones_labores, key=f"lab_{ced}", disabled=esta_reportado)
-                    
-                    if st.session_state.get(f"last_lab_{ced}") != labor_sel:
-                        st.session_state[f"cant_{ced}"] = mapa_meta.get(labor_sel, 0.0)
-                        st.session_state[f"last_lab_{ced}"] = labor_sel
-
-                    unidad_auto = mapa_unid.get(labor_sel, "")
-                    with c3:
-                        etiqueta_cant = f"📦 Cantidad ({unidad_auto})" if unidad_auto else "📦 Cantidad"
-                        cant_sel = st.number_input(etiqueta_cant, min_value=0.0, step=1.0, key=f"cant_{ced}", disabled=esta_reportado)
-                    with c4:
-                        horas_sel = st.number_input("⏱️ Horas", min_value=0.0, max_value=24.0, step=0.5, value=8.0, key=f"hrs_{ced}", disabled=esta_reportado)
-                    with c5:
-                        obs_sel = st.text_input("📝 Observación", placeholder="Novedad opcional...", key=f"obs_{ced}", disabled=esta_reportado)
-
-                    param_auto = mapa_param.get(labor_sel, "Laborado")
-                    horas_final = 0.0 if ("Ausencia" in param_auto or "Descanso" in param_auto) else horas_sel
-
                     registros_pendientes.append({
+                        "cedula": ced, "nombre": nom, "lote": lote_sel, "labor": labor_sel,
+                        "cantidad": cant_sel, "unidad": unidad_auto, "horas": horas_final,
+                        "parametro": param_auto, "obs": obs_sel
+                    })
+
+            if total_pend > 0:
+                if st.button("💾 Guardar Reporte de Pendientes", type="primary", use_container_width=True):
+                    nuevas_filas = []
+                    hora_actual = datetime.now().strftime("%H:%M:%S")
+                    for item in registros_pendientes:
+                        if item["cedula"] not in ya_reportados:
+                            id_unico = str(uuid.uuid4())[:8].upper()
+                            nuevas_filas.append([
+                                id_unico, fecha_str, fecha_reporte.year, fecha_reporte.month,
+                                coordinador, item["cedula"], item["nombre"], item["lote"],
+                                item["labor"], item["cantidad"], item["unidad"],
+                                item["horas"], item["parametro"], item["obs"], hora_actual
+                            ])
+                    if nuevas_filas:
+                        if agregar_filas("Registros", nuevas_filas):
+                            st.success(f"✅ Se guardaron {len(nuevas_filas)} registros correctamente.")
+                            st.rerun()
+            else:
+                st.success("🎉 ¡Excelente! Ya completaste el reporte de todo tu personal para esta fecha.")
+
+elif perfil == "🗂️ 2. Control Secretaría":
+
 
 elif perfil == "🗂️ 2. Control Secretaría":
     st.title("🗂️ Control Diario y Consolidado Excel")
