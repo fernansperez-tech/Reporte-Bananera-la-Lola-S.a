@@ -389,7 +389,7 @@ elif perfil == "⚙️ 4. Administración (Admin)":
 
             st.divider()
             st.subheader("✏️ Editar o Eliminar Empleados")
-                        col_cfg_emp = {
+            col_cfg_emp = {
                 "Estado": st.column_config.SelectboxColumn("Estado", options=["Activo", "Inactivo"], required=True)
             }
             if lista_coords_activos:
