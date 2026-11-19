@@ -363,7 +363,7 @@ elif perfil == "⚙️ 4. Administración (Admin)":
 
         with tab_emp:
             st.subheader("➕ Agregar Nuevo Empleado")
-                lista_coords_activos = [
+            lista_coords_activos = [
                 str(fila["Nombre_Coordinador"])
                 for fila in df_coords.to_dict("records")
                 if str(fila.get("Estado", "")).strip() == "Activo" and str(fila.get("Nombre_Coordinador", "")).strip() != ""
