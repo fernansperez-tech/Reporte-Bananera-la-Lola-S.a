@@ -363,11 +363,12 @@ elif perfil == "⚙️ 4. Administración (Admin)":
 
         with tab_emp:
             st.subheader("➕ Agregar Nuevo Empleado")
-            lista_coords_activos = []
-            if not df_coords.empty and "Estado" in df_coords.columns and "Nombre_Coordinador" in df_coords.columns:
-                lista_coords_activos = df_coords[df_coords["Estado"] == "Activo"]["Nombre_Coordinador"].squeeze().tolist() if len(df_coords[df_coords["Estado"] == "Activo"]) > 1 else df_coords[df_coords["Estado"] == "Activo"]["Nombre_Coordinador"].values.flatten().tolist()
+                lista_coords_activos = [
+                str(fila["Nombre_Coordinador"])
+                for fila in df_coords.to_dict("records")
+                if str(fila.get("Estado", "")).strip() == "Activo" and str(fila.get("Nombre_Coordinador", "")).strip() != ""
+            ]
 
-            
             if not lista_coords_activos:
                 st.warning("⚠️ Primero crea al menos un Coordinador activo en la pestaña 'Coordinadores'.")
             else:
