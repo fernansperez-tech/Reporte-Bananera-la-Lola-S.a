@@ -389,13 +389,20 @@ elif perfil == "⚙️ 4. Administración (Admin)":
 
             st.divider()
             st.subheader("✏️ Editar o Eliminar Empleados")
+                        col_cfg_emp = {
+                "Estado": st.column_config.SelectboxColumn("Estado", options=["Activo", "Inactivo"], required=True)
+            }
+            if lista_coords_activos:
+                col_cfg_emp["Coordinador"] = st.column_config.SelectboxColumn("Coordinador", options=lista_coords_activos)
+
             df_emp_editado = st.data_editor(
-                df_empleados, num_rows="dynamic", use_container_width=True,
-                column_config={
-                    "Coordinador": st.column_config.SelectboxColumn("Coordinador", options=lista_coords_activos) if lista_coords_activos else st.column_config.TextColumn("Coordinador"),
-                    "Estado": st.column_config.SelectboxColumn("Estado", options=["Activo", "Inactivo"], required=True)
-                },
+                df_empleados.reset_index(drop=True),
+                num_rows="dynamic",
+                use_container_width=True,
+                column_config=col_cfg_emp,
                 key="editor_empleados"
+            )
+
             )
             if st.button("💾 Guardar Cambios en Empleados", type="primary"):
                 if sobrescribir_pestana("Empleados", df_emp_editado):
