@@ -18,11 +18,13 @@ COLS_EMPLEADOS = ["Cedula", "Nombre", "Coordinador", "Cargo_Area", "Estado"]
 COLS_LABORES = ["Nombre_Labor", "Unidad_Medida", "Rendimiento_Estimado", "Tipo_Parametro", "Estado"]
 COLS_COORDS = ["Usuario", "Nombre_Coordinador", "Password", "Estado"]
 
+@st.cache_resource
 def conectar_sheets():
     creds_dict = dict(st.secrets["gcp_service_account"])
     client = gspread.service_account_from_dict(creds_dict)
     return client.open_by_key("10rnbMgxL0L53tyqdF9klViPiLTxejQidd0rUmC2HqPQ")
 
+@st.cache_data(ttl=120, show_spinner=False)
 def leer_pestana(nombre_pestana, columnas_default):
     try:
         sheet = conectar_sheets()
@@ -50,6 +52,7 @@ def sobrescribir_pestana(nombre_pestana, df):
         ws.clear()
         df_clean = df.fillna("").astype(str)
         ws.update([df_clean.columns.values.tolist()] + df_clean.values.tolist())
+        st.cache_data.clear()
         return True
     except Exception as e:
         st.error(f"Error guardando en '{nombre_pestana}': {e}")
@@ -59,8 +62,8 @@ def agregar_filas(nombre_pestana, filas):
     try:
         sheet = conectar_sheets()
         ws = sheet.worksheet(nombre_pestana)
-        for fila in filas:
-            ws.append_row([str(x) for x in fila])
+        ws.append_rows([[str(x) for x in fila] for fila in filas])
+        st.cache_data.clear()
         return True
     except Exception as e:
         st.error(f"Error agregando registros: {e}")
