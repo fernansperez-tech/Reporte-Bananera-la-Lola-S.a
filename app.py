@@ -139,7 +139,7 @@ if perfil == "👷 1. Reporte Coordinadores":
                         st.rerun()
                 else:
                     st.warning("Todos los empleados de esta lista ya fueron reportados en esta fecha.")
-    elif perfil == "🗂️ 2. Control Secretaría":
+elif perfil == "🗂️ 2. Control Secretaría":
     st.title("🗂️ Control Diario y Consolidado Excel")
     fecha_consulta = st.date_input("Seleccione fecha a revisar:", value=date.today())
     fecha_str = fecha_consulta.strftime("%Y-%m-%d")
