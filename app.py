@@ -7,36 +7,87 @@ import gspread
 
 st.set_page_config(page_title="Bananera La Lola S.A. - App Labores", layout="wide", page_icon="🍌")
 
+# Estilos CSS estilo App Flutter (Material 3 Cards y Chips)
 st.markdown("""
 <style>
     div[data-testid="stVerticalBlockBorderWrapper"] {
-        border-radius: 16px !important;
-        border: 1px solid rgba(128, 128, 128, 0.25) !important;
-        border-top: 5px solid #16a34a !important;
-        padding: 14px 16px !important;
+        background-color: var(--secondary-background-color) !important;
+        border-radius: 20px !important;
+        border: 1px solid rgba(128, 128, 128, 0.22) !important;
+        padding: 16px 18px !important;
         margin-bottom: 14px !important;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08) !important;
+        box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08) !important;
+        transition: transform 0.15s ease-in-out;
     }
-    .android-card-title {
-        font-size: 1.15rem;
+    .flutter-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 12px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid rgba(128, 128, 128, 0.18);
+    }
+    .flutter-user-box {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+    .flutter-avatar {
+        width: 44px;
+        height: 44px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #16a34a, #22c55e);
+        color: white;
         font-weight: 800;
-        margin-bottom: 2px;
-        letter-spacing: -0.2px;
+        font-size: 1.05rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        box-shadow: 0 3px 8px rgba(22, 163, 74, 0.35);
     }
-    .android-card-chip {
-        display: inline-block;
-        padding: 3px 10px;
+    .flutter-name {
+        font-size: 1.08rem;
+        font-weight: 700;
+        color: var(--text-color);
+        line-height: 1.2;
+    }
+    .flutter-chips {
+        margin-top: 4px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+    }
+    .flutter-chip {
+        font-size: 0.74rem;
+        font-weight: 600;
+        padding: 2px 10px;
+        border-radius: 12px;
+        background-color: rgba(128, 128, 128, 0.14);
+        color: var(--text-color);
+    }
+    .badge-ok {
+        background-color: rgba(22, 163, 74, 0.18);
+        color: #22c55e;
+        padding: 4px 12px;
         border-radius: 20px;
         font-size: 0.78rem;
-        font-weight: 600;
-        background-color: rgba(22, 163, 74, 0.15);
-        color: #16a34a;
-        margin-right: 6px;
+        font-weight: 700;
+        border: 1px solid rgba(34, 197, 94, 0.35);
+    }
+    .badge-pend {
+        background-color: rgba(245, 158, 11, 0.18);
+        color: #f59e0b;
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 0.78rem;
+        font-weight: 700;
+        border: 1px solid rgba(245, 158, 11, 0.35);
     }
     .stButton > button {
-        border-radius: 12px !important;
+        border-radius: 14px !important;
         font-weight: 700 !important;
-        padding: 0.55rem 1rem !important;
+        height: 46px !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -136,7 +187,7 @@ if perfil == "👷 1. Reporte Coordinadores":
                         (df_coords["Estado"] == "Activo")
                     ]
                     if not match.empty:
-                        st.session_state.coord_logueado = match["Nombre_Coordinador"].values
+                        st.session_state.coord_logueado = match["Nombre_Coordinador"].values[0]
                         st.rerun()
                     else:
                         st.error("❌ Usuario o contraseña incorrectos, o coordinador inactivo.")
@@ -144,7 +195,7 @@ if perfil == "👷 1. Reporte Coordinadores":
                     st.warning("⚠️ El administrador aún no ha creado coordinadores.")
     else:
         coordinador = st.session_state.coord_logueado
-        h1, h2 = st.columns(2)
+        h1, h2 = st.columns([3, 1])
         h1.title(f"👷 {coordinador}")
         if h2.button("🚪 Salir", use_container_width=True):
             st.session_state.coord_logueado = None
@@ -192,64 +243,83 @@ if perfil == "👷 1. Reporte Coordinadores":
                     mapa_meta[r["Nombre_Labor"]] = 0.0
 
             registros_pendientes = []
+            lista_emp = list(empleados_activos.iterrows())
 
-            for _, emp in empleados_activos.iterrows():
-                ced = str(emp["Cedula"])
-                nom = emp["Nombre"]
-                cargo = emp["Cargo_Area"] if str(emp["Cargo_Area"]).strip() else "Operario"
-                esta_reportado = ced in ya_reportados
+            # Cuadrícula de 2 columnas estilo App Flutter
+            for i in range(0, len(lista_emp), 2):
+                cols_grid = st.columns(2)
+                for j in range(2):
+                    if i + j < len(lista_emp):
+                        _, emp = lista_emp[i + j]
+                        ced = str(emp["Cedula"])
+                        nom = str(emp["Nombre"]).strip()
+                        cargo = str(emp["Cargo_Area"]).strip() if str(emp["Cargo_Area"]).strip() else "Operario"
+                        esta_reportado = ced in ya_reportados
 
-                with st.container(border=True):
-                    top_izq, top_der = st.columns([3.5, 1.3])
-                    with top_izq:
-                        st.markdown(f"<div class='android-card-title'>👤 {nom}</div>", unsafe_allow_html=True)
-                        st.markdown(f"<span class='android-card-chip'>🪪 {ced}</span><span class='android-card-chip'>🌱 {cargo}</span>", unsafe_allow_html=True)
-                    with top_der:
-                        if esta_reportado:
-                            st.success("✅ Guardado")
-                        else:
-                            st.warning("⏳ Pendiente")
+                        # Iniciales para el avatar circular
+                        partes_nom = nom.split()
+                        iniciales = (partes_nom[0][0] + partes_nom[1][0]).upper() if len(partes_nom) > 1 else nom[:2].upper()
+                        badge_html = "<span class='badge-ok'>✓ Listo</span>" if esta_reportado else "<span class='badge-pend'>⏳ Pendiente</span>"
 
-                    st.write("")
-                    if esta_reportado:
-                        reg_ant = ya_reportados[ced]
-                        st.info(f"📋 **Registrado en esta fecha:** Lote `{reg_ant['Lote']}` | Labor: **{reg_ant['Labor']}** | Cantidad: **{reg_ant['Cantidad']} {reg_ant['Unidad']}** | Horas: **{reg_ant['Horas']}h** | Obs: *{reg_ant['Observaciones']}*")
-                    else:
-                        k_lote = f"lote_{fecha_str}_{ced}"
-                        k_lab = f"lab_{fecha_str}_{ced}"
-                        k_cant = f"cant_{fecha_str}_{ced}"
-                        k_hrs = f"hrs_{fecha_str}_{ced}"
-                        k_obs = f"obs_{fecha_str}_{ced}"
-                        k_last = f"last_{fecha_str}_{ced}"
+                        with cols_grid[j]:
+                            with st.container(border=True):
+                                st.markdown(f"""
+                                <div class="flutter-header">
+                                    <div class="flutter-user-box">
+                                        <div class="flutter-avatar">{iniciales}</div>
+                                        <div>
+                                            <div class="flutter-name">{nom}</div>
+                                            <div class="flutter-chips">
+                                                <span class="flutter-chip">🪪 {ced}</span>
+                                                <span class="flutter-chip">🌱 {cargo}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div>{badge_html}</div>
+                                </div>
+                                """, unsafe_allow_html=True)
 
-                        c1, c2, c3, c4, c5 = st.columns([1.1, 2.1, 1.3, 1.1, 1.8])
-                        with c1:
-                            lote_sel = st.text_input("📍 Lote", placeholder="Ej: Lote 4", key=k_lote)
-                        with c2:
-                            labor_sel = st.selectbox("🛠️ Labor", opciones_labores, key=k_lab)
-                        
-                        if st.session_state.get(k_last) != labor_sel:
-                            st.session_state[k_cant] = mapa_meta.get(labor_sel, 0.0)
-                            st.session_state[k_last] = labor_sel
+                                if esta_reportado:
+                                    reg_ant = ya_reportados[ced]
+                                    st.success(f"📍 **Lote:** {reg_ant['Lote']}  \n🛠️ **Labor:** {reg_ant['Labor']}  \n📦 **Cant:** {reg_ant['Cantidad']} {reg_ant['Unidad']} | ⏱️ **{reg_ant['Horas']}h**")
+                                else:
+                                    k_lote = f"lote_{fecha_str}_{ced}"
+                                    k_lab = f"lab_{fecha_str}_{ced}"
+                                    k_cant = f"cant_{fecha_str}_{ced}"
+                                    k_hrs = f"hrs_{fecha_str}_{ced}"
+                                    k_obs = f"obs_{fecha_str}_{ced}"
+                                    k_last = f"last_{fecha_str}_{ced}"
 
-                        unidad_auto = mapa_unid.get(labor_sel, "")
-                        with c3:
-                            etiqueta_cant = f"📦 Cant. ({unidad_auto})" if unidad_auto else "📦 Cantidad"
-                            cant_sel = st.number_input(etiqueta_cant, min_value=0.0, step=1.0, key=k_cant)
-                        with c4:
-                            horas_sel = st.number_input("⏱️ Horas", min_value=0.0, max_value=24.0, step=0.5, value=8.0, key=k_hrs)
-                        with c5:
-                            obs_sel = st.text_input("📝 Novedad / Obs.", placeholder="Opcional...", key=k_obs)
+                                    r1_c1, r1_c2 = st.columns([1, 1.5])
+                                    with r1_c1:
+                                        lote_sel = st.text_input("📍 Lote", placeholder="Ej: Lote 4", key=k_lote)
+                                    with r1_c2:
+                                        labor_sel = st.selectbox("🛠️ Labor", opciones_labores, key=k_lab)
 
-                        param_auto = mapa_param.get(labor_sel, "Laborado")
-                        horas_final = 0.0 if ("Ausencia" in param_auto or "Descanso" in param_auto) else horas_sel
+                                    if st.session_state.get(k_last) != labor_sel:
+                                        st.session_state[k_cant] = mapa_meta.get(labor_sel, 0.0)
+                                        st.session_state[k_last] = labor_sel
 
-                        registros_pendientes.append({
-                            "cedula": ced, "nombre": nom, "lote": lote_sel, "labor": labor_sel,
-                            "cantidad": cant_sel, "unidad": unidad_auto, "horas": horas_final,
-                            "parametro": param_auto, "obs": obs_sel
-                        })
+                                    unidad_auto = mapa_unid.get(labor_sel, "")
+                                    r2_c1, r2_c2 = st.columns(2)
+                                    with r2_c1:
+                                        etiqueta_cant = f"📦 Cant. ({unidad_auto})" if unidad_auto else "📦 Cantidad"
+                                        cant_sel = st.number_input(etiqueta_cant, min_value=0.0, step=1.0, key=k_cant)
+                                    with r2_c2:
+                                        horas_sel = st.number_input("⏱️ Horas", min_value=0.0, max_value=24.0, step=0.5, value=8.0, key=k_hrs)
 
+                                    obs_sel = st.text_input("📝 Observación / Novedad", placeholder="Opcional...", key=k_obs)
+
+                                    param_auto = mapa_param.get(labor_sel, "Laborado")
+                                    horas_final = 0.0 if ("Ausencia" in param_auto or "Descanso" in param_auto) else horas_sel
+
+                                    registros_pendientes.append({
+                                        "cedula": ced, "nombre": nom, "lote": lote_sel, "labor": labor_sel,
+                                        "cantidad": cant_sel, "unidad": unidad_auto, "horas": horas_final,
+                                        "parametro": param_auto, "obs": obs_sel
+                                    })
+
+            st.write("")
             if total_pend > 0:
                 if st.button("💾 Guardar Reporte de Pendientes", type="primary", use_container_width=True):
                     nuevas_filas = []
@@ -269,6 +339,7 @@ if perfil == "👷 1. Reporte Coordinadores":
                             st.rerun()
             else:
                 st.success("🎉 ¡Excelente! Ya completaste el reporte de todo tu personal para esta fecha.")
+
 elif perfil == "🗂️ 2. Control Secretaría":
     st.title("🗂️ Control Diario y Consolidado Excel")
     fecha_consulta = st.date_input("Seleccione fecha a revisar:", value=date.today())
