@@ -4,7 +4,6 @@ from datetime import datetime, date
 import io
 import uuid
 import gspread
-from google.oauth2.service_account import Credentials
 
 st.set_page_config(page_title="Bananera La Lola S.A. - Labores", layout="wide", page_icon="🍌")
 
@@ -14,13 +13,10 @@ COLS_REGISTROS = ["ID_Registro", "Fecha", "Año", "Mes", "Coordinador", "Cedula"
 COLS_EMPLEADOS = ["Cedula", "Nombre", "Coordinador", "Cargo_Area", "Estado"]
 COLS_LABORES = ["Nombre_Labor", "Tipo_Parametro", "Estado"]
 
-@st.cache_resource
 def conectar_sheets():
-    scopes = [
-        "https://googleapis.com",
-        "https://googleapis.com"
-    ]
     creds_dict = dict(st.secrets["gcp_service_account"])
+    client = gspread.service_account_from_dict(creds_dict)
+    return client.open("Reporte_Labores_DB")
     creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
     client = gspread.authorize(creds)
     return client.open("Reporte_Labores_DB")
