@@ -101,7 +101,7 @@ if perfil == "👷 1. Reporte Coordinadores":
                         (df_coords["Estado"] == "Activo")
                     ]
                     if not match.empty:
-                        st.session_state.coord_logueado = match.iloc["Nombre_Coordinador"]
+                        st.session_state.coord_logueado = match.iloc[0]["Nombre_Coordinador"]
                         st.rerun()
                     else:
                         st.error("❌ Usuario o contraseña incorrectos, o coordinador inactivo.")
