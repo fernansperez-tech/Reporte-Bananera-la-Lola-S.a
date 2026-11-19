@@ -5,27 +5,38 @@ import io
 import uuid
 import gspread
 
-st.set_page_config(page_title="Bananera La Lola S.A. - Labores", layout="wide", page_icon="🍌")
+st.set_page_config(page_title="Bananera La Lola S.A. - App Labores", layout="wide", page_icon="🍌")
 
 st.markdown("""
 <style>
     div[data-testid="stVerticalBlockBorderWrapper"] {
-        background-color: #f8fafc;
-        border-radius: 12px;
-        border: 1px solid #cbd5e1;
-        padding: 8px 12px;
-        margin-bottom: 10px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.04);
+        border-radius: 16px !important;
+        border: 1px solid rgba(128, 128, 128, 0.25) !important;
+        border-top: 5px solid #16a34a !important;
+        padding: 14px 16px !important;
+        margin-bottom: 14px !important;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08) !important;
     }
-    .emp-header {
-        font-size: 1.08rem;
-        font-weight: 700;
-        color: #0f172a;
+    .android-card-title {
+        font-size: 1.15rem;
+        font-weight: 800;
         margin-bottom: 2px;
+        letter-spacing: -0.2px;
     }
-    .emp-sub {
-        font-size: 0.85rem;
-        color: #475569;
+    .android-card-chip {
+        display: inline-block;
+        padding: 3px 10px;
+        border-radius: 20px;
+        font-size: 0.78rem;
+        font-weight: 600;
+        background-color: rgba(22, 163, 74, 0.15);
+        color: #16a34a;
+        margin-right: 6px;
+    }
+    .stButton > button {
+        border-radius: 12px !important;
+        font-weight: 700 !important;
+        padding: 0.55rem 1rem !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -113,11 +124,11 @@ perfil = st.sidebar.radio(
 if perfil == "👷 1. Reporte Coordinadores":
     if st.session_state.coord_logueado is None:
         st.title("👷 Reporte Diario de Labores")
-        st.subheader("🔐 Inicio de Sesión de Coordinador")
+        st.subheader("🔐 Inicio de Sesión")
         with st.form("login_coord"):
             user_in = st.text_input("Usuario:")
             pass_in = st.text_input("Contraseña:", type="password")
-            if st.form_submit_button("Ingresar", type="primary"):
+            if st.form_submit_button("Ingresar a mi Equipo", type="primary", use_container_width=True):
                 if not df_coords.empty:
                     match = df_coords[
                         (df_coords["Usuario"].str.strip().str.lower() == user_in.strip().lower()) &
@@ -125,16 +136,16 @@ if perfil == "👷 1. Reporte Coordinadores":
                         (df_coords["Estado"] == "Activo")
                     ]
                     if not match.empty:
-                       st.session_state.coord_logueado = match["Nombre_Coordinador"].values[0]
-                       st.rerun()
+                        st.session_state.coord_logueado = match["Nombre_Coordinador"].values
+                        st.rerun()
                     else:
                         st.error("❌ Usuario o contraseña incorrectos, o coordinador inactivo.")
                 else:
                     st.warning("⚠️ El administrador aún no ha creado coordinadores.")
     else:
         coordinador = st.session_state.coord_logueado
-        h1, h2 = st.columns([4, 1])
-        h1.title(f"👷 Panel de {coordinador}")
+        h1, h2 = st.columns()
+        h1.title(f"👷 {coordinador}")
         if h2.button("🚪 Salir", use_container_width=True):
             st.session_state.coord_logueado = None
             st.rerun()
@@ -147,23 +158,26 @@ if perfil == "👷 1. Reporte Coordinadores":
         elif labores_activas.empty:
             st.warning("⚠️ No hay labores activas configuradas.")
         else:
-            c_fecha, c_m1, c_m2, c_m3 = st.columns([1.5, 1, 1, 1])
+            c_fecha, c_m1, c_m2, c_m3 = st.columns([1.6, 1, 1, 1])
             with c_fecha:
-                fecha_reporte = st.date_input("📅 Fecha de la labor:", value=date.today())
+                fecha_reporte = st.date_input("📅 Fecha del reporte:", value=date.today())
             
             fecha_str = fecha_reporte.strftime("%Y-%m-%d")
-            ya_reportados = []
+            
+            df_hoy = pd.DataFrame()
+            ya_reportados = {}
             if not df_registros.empty:
-                filtro_hoy = df_registros[(df_registros["Fecha"] == fecha_str) & (df_registros["Coordinador"] == coordinador)]
-                ya_reportados = filtro_hoy["Cedula"].astype(str).tolist()
+                df_hoy = df_registros[(df_registros["Fecha"] == fecha_str) & (df_registros["Coordinador"] == coordinador)]
+                for _, reg in df_hoy.iterrows():
+                    ya_reportados[str(reg["Cedula"])] = reg
 
             total_equipo = len(empleados_activos)
             total_listos = sum(1 for c in empleados_activos["Cedula"].astype(str) if c in ya_reportados)
             total_pend = total_equipo - total_listos
 
-            c_m1.metric("👥 Mi Equipo", total_equipo)
-            c_m2.metric("✅ Reportados", total_listos)
-            c_m3.metric("⏳ Pendientes", total_pend)
+            c_m1.metric("👥 Equipo", total_equipo)
+            c_m2.metric("✅ Listos", total_listos)
+            c_m3.metric("⏳ Faltan", total_pend)
 
             st.divider()
 
@@ -186,44 +200,55 @@ if perfil == "👷 1. Reporte Coordinadores":
                 esta_reportado = ced in ya_reportados
 
                 with st.container(border=True):
-                    top_izq, top_der = st.columns([3.5, 1.2])
+                    top_izq, top_der = st.columns([3.5, 1.3])
                     with top_izq:
-                        st.markdown(f"<div class='emp-header'>👤 {nom}</div>", unsafe_allow_html=True)
-                        st.markdown(f"<div class='emp-sub'>🪪 C.C. {ced} &nbsp;|&nbsp; 🌱 {cargo}</div>", unsafe_allow_html=True)
+                        st.markdown(f"<div class='android-card-title'>👤 {nom}</div>", unsafe_allow_html=True)
+                        st.markdown(f"<span class='android-card-chip'>🪪 {ced}</span><span class='android-card-chip'>🌱 {cargo}</span>", unsafe_allow_html=True)
                     with top_der:
                         if esta_reportado:
-                            st.success("✅ Reportado", icon="✔️")
+                            st.success("✅ Guardado")
                         else:
                             st.warning("⏳ Pendiente")
 
                     st.write("")
-                    c1, c2, c3, c4, c5 = st.columns([1.1, 2.1, 1.3, 1.1, 1.8])
-                    with c1:
-                        lote_sel = st.text_input("📍 Lote", placeholder="Ej: Lote 4", key=f"lote_{ced}", disabled=esta_reportado)
-                    with c2:
-                        labor_sel = st.selectbox("🛠️ Labor asignada", opciones_labores, key=f"lab_{ced}", disabled=esta_reportado)
-                    
-                    if st.session_state.get(f"last_lab_{ced}") != labor_sel:
-                        st.session_state[f"cant_{ced}"] = mapa_meta.get(labor_sel, 0.0)
-                        st.session_state[f"last_lab_{ced}"] = labor_sel
+                    if esta_reportado:
+                        reg_ant = ya_reportados[ced]
+                        st.info(f"📋 **Registrado en esta fecha:** Lote `{reg_ant['Lote']}` | Labor: **{reg_ant['Labor']}** | Cantidad: **{reg_ant['Cantidad']} {reg_ant['Unidad']}** | Horas: **{reg_ant['Horas']}h** | Obs: *{reg_ant['Observaciones']}*")
+                    else:
+                        k_lote = f"lote_{fecha_str}_{ced}"
+                        k_lab = f"lab_{fecha_str}_{ced}"
+                        k_cant = f"cant_{fecha_str}_{ced}"
+                        k_hrs = f"hrs_{fecha_str}_{ced}"
+                        k_obs = f"obs_{fecha_str}_{ced}"
+                        k_last = f"last_{fecha_str}_{ced}"
 
-                    unidad_auto = mapa_unid.get(labor_sel, "")
-                    with c3:
-                        etiqueta_cant = f"📦 Cantidad ({unidad_auto})" if unidad_auto else "📦 Cantidad"
-                        cant_sel = st.number_input(etiqueta_cant, min_value=0.0, step=1.0, key=f"cant_{ced}", disabled=esta_reportado)
-                    with c4:
-                        horas_sel = st.number_input("⏱️ Horas", min_value=0.0, max_value=24.0, step=0.5, value=8.0, key=f"hrs_{ced}", disabled=esta_reportado)
-                    with c5:
-                        obs_sel = st.text_input("📝 Observación", placeholder="Novedad opcional...", key=f"obs_{ced}", disabled=esta_reportado)
+                        c1, c2, c3, c4, c5 = st.columns([1.1, 2.1, 1.3, 1.1, 1.8])
+                        with c1:
+                            lote_sel = st.text_input("📍 Lote", placeholder="Ej: Lote 4", key=k_lote)
+                        with c2:
+                            labor_sel = st.selectbox("🛠️ Labor", opciones_labores, key=k_lab)
+                        
+                        if st.session_state.get(k_last) != labor_sel:
+                            st.session_state[k_cant] = mapa_meta.get(labor_sel, 0.0)
+                            st.session_state[k_last] = labor_sel
 
-                    param_auto = mapa_param.get(labor_sel, "Laborado")
-                    horas_final = 0.0 if ("Ausencia" in param_auto or "Descanso" in param_auto) else horas_sel
+                        unidad_auto = mapa_unid.get(labor_sel, "")
+                        with c3:
+                            etiqueta_cant = f"📦 Cant. ({unidad_auto})" if unidad_auto else "📦 Cantidad"
+                            cant_sel = st.number_input(etiqueta_cant, min_value=0.0, step=1.0, key=k_cant)
+                        with c4:
+                            horas_sel = st.number_input("⏱️ Horas", min_value=0.0, max_value=24.0, step=0.5, value=8.0, key=k_hrs)
+                        with c5:
+                            obs_sel = st.text_input("📝 Novedad / Obs.", placeholder="Opcional...", key=k_obs)
 
-                    registros_pendientes.append({
-                        "cedula": ced, "nombre": nom, "lote": lote_sel, "labor": labor_sel,
-                        "cantidad": cant_sel, "unidad": unidad_auto, "horas": horas_final,
-                        "parametro": param_auto, "obs": obs_sel
-                    })
+                        param_auto = mapa_param.get(labor_sel, "Laborado")
+                        horas_final = 0.0 if ("Ausencia" in param_auto or "Descanso" in param_auto) else horas_sel
+
+                        registros_pendientes.append({
+                            "cedula": ced, "nombre": nom, "lote": lote_sel, "labor": labor_sel,
+                            "cantidad": cant_sel, "unidad": unidad_auto, "horas": horas_final,
+                            "parametro": param_auto, "obs": obs_sel
+                        })
 
             if total_pend > 0:
                 if st.button("💾 Guardar Reporte de Pendientes", type="primary", use_container_width=True):
