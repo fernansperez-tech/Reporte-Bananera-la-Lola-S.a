@@ -11,7 +11,7 @@ ADMIN_PASSWORD = st.secrets.get("admin_password", "Admin2026*")
 
 COLS_REGISTROS = [
     "ID_Registro", "Fecha", "Año", "Mes", "Coordinador", "Cedula", "Empleado",
-    "Lote", "Labor", "Cantidad", "Meta_Estimada", "Unidad", "Horas",
+    "Lote", "Labor", "Cantidad", "Unidad", "Horas",
     "Tipo_Parametro", "Observaciones", "Hora_Registro"
 ]
 COLS_EMPLEADOS = ["Cedula", "Nombre", "Coordinador", "Cargo_Area", "Estado"]
@@ -137,60 +137,70 @@ if perfil == "👷 1. Reporte Coordinadores":
             opciones_labores = labores_activas["Nombre_Labor"].tolist()
             mapa_param = dict(zip(labores_activas["Nombre_Labor"], labores_activas["Tipo_Parametro"]))
             mapa_unid = dict(zip(labores_activas["Nombre_Labor"], labores_activas["Unidad_Medida"]))
-            mapa_meta = dict(zip(labores_activas["Nombre_Labor"], labores_activas["Rendimiento_Estimado"]))
+            mapa_meta = {}
+            for _, r in labores_activas.iterrows():
+                try:
+                    mapa_meta[r["Nombre_Labor"]] = float(r["Rendimiento_Estimado"])
+                except ValueError:
+                    mapa_meta[r["Nombre_Labor"]] = 0.0
 
-            st.info("💡 **Guía de metas por labor:** " + " | ".join([f"**{r['Nombre_Labor']}**: {r['Rendimiento_Estimado']} {r['Unidad_Medida']}" for _, r in labores_activas.iterrows()]))
+            st.caption("💡 Al elegir la labor se carga su cantidad estimada automáticamente. Puedes editarla si hubo variación.")
 
-            with st.form("form_reporte_diario"):
-                registros_pendientes = []
-                for _, emp in empleados_activos.iterrows():
-                    ced = str(emp["Cedula"])
-                    nom = emp["Nombre"]
-                    cargo = emp["Cargo_Area"]
-                    estado_previo = "✅ Ya reportado" if ced in ya_reportados else "⏳ Pendiente"
-                    
-                    st.markdown(f"**{nom}** (`{ced}`) — *{cargo}* | {estado_previo}")
-                    c1, c2, c3, c4, c5 = st.columns([1.2, 2, 1.1, 1.1, 1.8])
-                    with c1:
-                        lote_sel = st.text_input("Lote", placeholder="Ej: Lote 4", key=f"lote_{ced}")
-                    with c2:
-                        labor_sel = st.selectbox("Labor", opciones_labores, key=f"lab_{ced}")
-                    with c3:
-                        cant_sel = st.number_input("Cantidad Real", min_value=0.0, step=1.0, value=0.0, key=f"cant_{ced}")
-                    with c4:
-                        horas_sel = st.number_input("Horas Lab.", min_value=0.0, max_value=24.0, step=0.5, value=8.0, key=f"hrs_{ced}")
-                    with c5:
-                        obs_sel = st.text_input("Observación", placeholder="Novedad...", key=f"obs_{ced}")
-                    
-                    param_auto = mapa_param.get(labor_sel, "Laborado")
-                    horas_final = 0.0 if ("Ausencia" in param_auto or "Descanso" in param_auto) else horas_sel
+            registros_pendientes = []
+            for _, emp in empleados_activos.iterrows():
+                ced = str(emp["Cedula"])
+                nom = emp["Nombre"]
+                cargo = emp["Cargo_Area"]
+                estado_previo = "✅ Ya reportado" if ced in ya_reportados else "⏳ Pendiente"
+                
+                st.markdown(f"**{nom}** (`{ced}`) — *{cargo}* | {estado_previo}")
+                c1, c2, c3, c4, c5 = st.columns([1.2, 2, 1.2, 1.1, 1.8])
+                with c1:
+                    lote_sel = st.text_input("Lote", placeholder="Ej: Lote 4", key=f"lote_{ced}")
+                with c2:
+                    labor_sel = st.selectbox("Labor", opciones_labores, key=f"lab_{ced}")
+                
+                if st.session_state.get(f"last_lab_{ced}") != labor_sel:
+                    st.session_state[f"cant_{ced}"] = mapa_meta.get(labor_sel, 0.0)
+                    st.session_state[f"last_lab_{ced}"] = labor_sel
 
-                    registros_pendientes.append({
-                        "cedula": ced, "nombre": nom, "lote": lote_sel, "labor": labor_sel,
-                        "cantidad": cant_sel, "meta": mapa_meta.get(labor_sel, "0"),
-                        "unidad": mapa_unid.get(labor_sel, ""), "horas": horas_final,
-                        "parametro": param_auto, "obs": obs_sel
-                    })
-                    st.divider()
+                unidad_auto = mapa_unid.get(labor_sel, "")
+                with c3:
+                    etiqueta_cant = f"Cantidad ({unidad_auto})" if unidad_auto else "Cantidad"
+                    cant_sel = st.number_input(etiqueta_cant, min_value=0.0, step=1.0, key=f"cant_{ced}")
+                with c4:
+                    horas_sel = st.number_input("Horas Lab.", min_value=0.0, max_value=24.0, step=0.5, value=8.0, key=f"hrs_{ced}")
+                with c5:
+                    obs_sel = st.text_input("Observación", placeholder="Novedad...", key=f"obs_{ced}")
+                
+                param_auto = mapa_param.get(labor_sel, "Laborado")
+                horas_final = 0.0 if ("Ausencia" in param_auto or "Descanso" in param_auto) else horas_sel
 
-                if st.form_submit_button("💾 Guardar Reporte del Día", type="primary"):
-                    nuevas_filas = []
-                    hora_actual = datetime.now().strftime("%H:%M:%S")
-                    for item in registros_pendientes:
-                        if item["cedula"] not in ya_reportados:
-                            id_unico = str(uuid.uuid4())[:8].upper()
-                            nuevas_filas.append([
-                                id_unico, fecha_str, fecha_reporte.year, fecha_reporte.month,
-                                coordinador, item["cedula"], item["nombre"], item["lote"],
-                                item["labor"], item["cantidad"], item["meta"], item["unidad"],
-                                item["horas"], item["parametro"], item["obs"], hora_actual
-                            ])
-                    if nuevas_filas:
-                        if agregar_filas("Registros", nuevas_filas):
-                            st.success(f"✅ Se guardaron {len(nuevas_filas)} registros correctamente.")
-                            st.rerun()
-                    else:
-                        st.warning("Todos tus empleados ya fueron reportados en esta fecha.")
+                registros_pendientes.append({
+                    "cedula": ced, "nombre": nom, "lote": lote_sel, "labor": labor_sel,
+                    "cantidad": cant_sel, "unidad": unidad_auto, "horas": horas_final,
+                    "parametro": param_auto, "obs": obs_sel
+                })
+                st.divider()
+
+            if st.button("💾 Guardar Reporte del Día", type="primary"):
+                nuevas_filas = []
+                hora_actual = datetime.now().strftime("%H:%M:%S")
+                for item in registros_pendientes:
+                    if item["cedula"] not in ya_reportados:
+                        id_unico = str(uuid.uuid4())[:8].upper()
+                        nuevas_filas.append([
+                            id_unico, fecha_str, fecha_reporte.year, fecha_reporte.month,
+                            coordinador, item["cedula"], item["nombre"], item["lote"],
+                            item["labor"], item["cantidad"], item["unidad"],
+                            item["horas"], item["parametro"], item["obs"], hora_actual
+                        ])
+                if nuevas_filas:
+                    if agregar_filas("Registros", nuevas_filas):
+                        st.success(f"✅ Se guardaron {len(nuevas_filas)} registros correctamente.")
+                        st.rerun()
+                else:
+                    st.warning("Todos tus empleados ya fueron reportados en esta fecha.")
 elif perfil == "🗂️ 2. Control Secretaría":
     st.title("🗂️ Control Diario y Consolidado Excel")
     fecha_consulta = st.date_input("Seleccione fecha a revisar:", value=date.today())
@@ -290,11 +300,7 @@ elif perfil == "📊 3. Recursos Humanos":
             df_filtrado = df_filtrado[df_filtrado["Fecha"] == fecha_exacta.strftime("%Y-%m-%d")]
 
         df_filtrado["Cant_Num"] = pd.to_numeric(df_filtrado["Cantidad"], errors="coerce").fillna(0)
-        df_filtrado["Meta_Num"] = pd.to_numeric(df_filtrado["Meta_Estimada"], errors="coerce").fillna(0)
         df_filtrado["Horas_Num"] = pd.to_numeric(df_filtrado["Horas"], errors="coerce").fillna(0)
-        df_filtrado["% Cumplimiento"] = df_filtrado.apply(
-            lambda r: f"{(r['Cant_Num'] / r['Meta_Num'] * 100):.1f}%" if r["Meta_Num"] > 0 else "N/A", axis=1
-        )
 
         st.divider()
         k1, k2, k3, k4 = st.columns(4)
@@ -305,10 +311,10 @@ elif perfil == "📊 3. Recursos Humanos":
 
         k1.metric("Registros Filtrados", total_reg)
         k2.metric("Total Ausencias", total_aus)
-        k3.metric("Suma Cantidad Real", f"{total_cant:,.1f}")
+        k3.metric("Suma Cantidad", f"{total_cant:,.1f}")
         k4.metric("Total Horas Laboradas", f"{total_hrs:,.1f} hrs")
 
-        df_export = df_filtrado.drop(columns=["ID_Registro", "Cant_Num", "Meta_Num", "Horas_Num"], errors="ignore")
+        df_export = df_filtrado.drop(columns=["ID_Registro", "Cant_Num", "Horas_Num"], errors="ignore")
         st.dataframe(df_export, use_container_width=True, hide_index=True)
 
         buffer_rrhh = io.BytesIO()
@@ -355,7 +361,9 @@ elif perfil == "⚙️ 4. Administración (Admin)":
             st.divider()
             st.subheader("✏️ Editar o Eliminar Coordinadores")
             df_coord_editado = st.data_editor(
-                df_coords, num_rows="dynamic", use_container_width=True,
+                df_coords.reset_index(drop=True),
+                num_rows="dynamic",
+                use_container_width=True,
                 column_config={"Estado": st.column_config.SelectboxColumn("Estado", options=["Activo", "Inactivo"], required=True)},
                 key="editor_coords"
             )
@@ -371,7 +379,7 @@ elif perfil == "⚙️ 4. Administración (Admin)":
                 for fila in df_coords.to_dict("records")
                 if str(fila.get("Estado", "")).strip() == "Activo" and str(fila.get("Nombre_Coordinador", "")).strip() != ""
             ]
-
+            
             if not lista_coords_activos:
                 st.warning("⚠️ Primero crea al menos un Coordinador activo en la pestaña 'Coordinadores'.")
             else:
@@ -407,20 +415,18 @@ elif perfil == "⚙️ 4. Administración (Admin)":
                 column_config=col_cfg_emp,
                 key="editor_empleados"
             )
-
-            
             if st.button("💾 Guardar Cambios en Empleados", type="primary"):
                 if sobrescribir_pestana("Empleados", df_emp_editado):
                     st.success("✅ Base de datos de empleados actualizada.")
                     st.rerun()
 
         with tab_lab:
-            st.subheader("➕ Crear Labor con Unidad y Rendimiento Estimado")
+            st.subheader("➕ Crear Labor con Unidad y Cantidad Estimada")
             with st.form("form_nueva_labor"):
                 c1, c2, c3, c4 = st.columns(4)
                 nombre_lab = c1.text_input("Nombre de la Labor *", placeholder="Ej: Embolse / Corte")
                 unidad_lab = c2.text_input("Unidad de Medida *", placeholder="Ej: Fundas, Racimos, Ha")
-                meta_lab = c3.number_input("Rendimiento Estimado / Día", min_value=0.0, step=1.0, value=0.0)
+                meta_lab = c3.number_input("Cantidad Estimada (Predefinida)", min_value=0.0, step=1.0, value=0.0)
                 param_lab = c4.selectbox("Parámetro RRHH *", ["Laborado", "Ausencia Injustificada", "Ausencia Justificada", "Descanso / Vacaciones"])
                 if st.form_submit_button("Crear Labor", type="primary"):
                     if nombre_lab:
@@ -433,7 +439,9 @@ elif perfil == "⚙️ 4. Administración (Admin)":
             st.divider()
             st.subheader("✏️ Editar o Eliminar Labores")
             df_lab_editado = st.data_editor(
-                df_labores, num_rows="dynamic", use_container_width=True,
+                df_labores.reset_index(drop=True),
+                num_rows="dynamic",
+                use_container_width=True,
                 column_config={
                     "Tipo_Parametro": st.column_config.SelectboxColumn("Tipo_Parametro", options=["Laborado", "Ausencia Injustificada", "Ausencia Justificada", "Descanso / Vacaciones"], required=True),
                     "Estado": st.column_config.SelectboxColumn("Estado", options=["Activa", "Inactiva"], required=True)
@@ -455,14 +463,24 @@ elif perfil == "⚙️ 4. Administración (Admin)":
                 ver_todos_reg = st.checkbox("Mostrar todos los registros históricos")
 
                 df_vista_reg = df_registros.copy() if ver_todos_reg else df_registros[df_registros["Fecha"] == fecha_ed_str].copy()
-                opciones_lab_admin = df_labores["Nombre_Labor"].tolist() if not df_labores.empty else []
+                opciones_lab_admin = [
+                    str(fila["Nombre_Labor"])
+                    for fila in df_labores.to_dict("records")
+                    if str(fila.get("Nombre_Labor", "")).strip() != ""
+                ]
+
+                col_cfg_reg = {
+                    "Tipo_Parametro": st.column_config.SelectboxColumn("Tipo_Parametro", options=["Laborado", "Ausencia Injustificada", "Ausencia Justificada", "Descanso / Vacaciones"])
+                }
+                if opciones_lab_admin:
+                    col_cfg_reg["Labor"] = st.column_config.SelectboxColumn("Labor", options=opciones_lab_admin)
 
                 df_reg_editado = st.data_editor(
-                    df_vista_reg, num_rows="dynamic", use_container_width=True, disabled=["ID_Registro"],
-                    column_config={
-                        "Labor": st.column_config.SelectboxColumn("Labor", options=opciones_lab_admin) if opciones_lab_admin else st.column_config.TextColumn("Labor"),
-                        "Tipo_Parametro": st.column_config.SelectboxColumn("Tipo_Parametro", options=["Laborado", "Ausencia Injustificada", "Ausencia Justificada", "Descanso / Vacaciones"])
-                    },
+                    df_vista_reg.reset_index(drop=True),
+                    num_rows="dynamic",
+                    use_container_width=True,
+                    disabled=["ID_Registro"],
+                    column_config=col_cfg_reg,
                     key="editor_registros"
                 )
 
