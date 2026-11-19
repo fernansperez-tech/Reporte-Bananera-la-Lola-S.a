@@ -16,7 +16,7 @@ COLS_LABORES = ["Nombre_Labor", "Tipo_Parametro", "Estado"]
 def conectar_sheets():
     creds_dict = dict(st.secrets["gcp_service_account"])
     client = gspread.service_account_from_dict(creds_dict)
-    return client.open("Reporte_Labores_DB")
+    return client.open_by_key("10rnbMgxL0L53tyqdF9klViPiLTxejQidd0rUmC2HqPQ")
     creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
     client = gspread.authorize(creds)
     return client.open("Reporte_Labores_DB")
