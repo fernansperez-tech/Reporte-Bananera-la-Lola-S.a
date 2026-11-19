@@ -144,7 +144,7 @@ if perfil == "👷 1. Reporte Coordinadores":
                     st.warning("⚠️ El administrador aún no ha creado coordinadores.")
     else:
         coordinador = st.session_state.coord_logueado
-        h1, h2 = st.columns()
+        h1, h2 = st.columns(2)
         h1.title(f"👷 {coordinador}")
         if h2.button("🚪 Salir", use_container_width=True):
             st.session_state.coord_logueado = None
