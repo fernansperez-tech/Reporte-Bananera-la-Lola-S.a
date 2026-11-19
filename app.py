@@ -7,7 +7,6 @@ import gspread
 
 st.set_page_config(page_title="Bananera La Lola S.A. - Labores", layout="wide", page_icon="🍌")
 
-# Estilos CSS para tarjetas modernas y botones más limpios
 st.markdown("""
 <style>
     div[data-testid="stVerticalBlockBorderWrapper"] {
@@ -111,7 +110,6 @@ perfil = st.sidebar.radio(
         "⚙️ 4. Administración (Admin)"
     ]
 )
-
 if perfil == "👷 1. Reporte Coordinadores":
     if st.session_state.coord_logueado is None:
         st.title("👷 Reporte Diario de Labores")
@@ -127,7 +125,7 @@ if perfil == "👷 1. Reporte Coordinadores":
                         (df_coords["Estado"] == "Activo")
                     ]
                     if not match.empty:
-                        st.session_state.coord_logueado = match.iloc[0]["Nombre_Coordinador"]
+                        st.session_state.coord_logueado = match.iloc["Nombre_Coordinador"]
                         st.rerun()
                     else:
                         st.error("❌ Usuario o contraseña incorrectos, o coordinador inactivo.")
@@ -135,9 +133,7 @@ if perfil == "👷 1. Reporte Coordinadores":
                     st.warning("⚠️ El administrador aún no ha creado coordinadores.")
     else:
         coordinador = st.session_state.coord_logueado
-        
-        # Barra superior moderna del coordinador
-        h1, h2 = st.columns([4, 1])
+        h1, h2 = st.columns()
         h1.title(f"👷 Panel de {coordinador}")
         if h2.button("🚪 Salir", use_container_width=True):
             st.session_state.coord_logueado = None
@@ -181,6 +177,48 @@ if perfil == "👷 1. Reporte Coordinadores":
                 except ValueError:
                     mapa_meta[r["Nombre_Labor"]] = 0.0
 
+            registros_pendientes = []
+
+            for _, emp in empleados_activos.iterrows():
+                ced = str(emp["Cedula"])
+                nom = emp["Nombre"]
+                cargo = emp["Cargo_Area"] if str(emp["Cargo_Area"]).strip() else "Operario"
+                esta_reportado = ced in ya_reportados
+
+                with st.container(border=True):
+                    top_izq, top_der = st.columns([3.5, 1.2])
+                    with top_izq:
+                        st.markdown(f"<div class='emp-header'>👤 {nom}</div>", unsafe_allow_html=True)
+                        st.markdown(f"<div class='emp-sub'>🪪 C.C. {ced} &nbsp;|&nbsp; 🌱 {cargo}</div>", unsafe_allow_html=True)
+                    with top_der:
+                        if esta_reportado:
+                            st.success("✅ Reportado", icon="✔️")
+                        else:
+                            st.warning("⏳ Pendiente")
+
+                    st.write("")
+                    c1, c2, c3, c4, c5 = st.columns([1.1, 2.1, 1.3, 1.1, 1.8])
+                    with c1:
+                        lote_sel = st.text_input("📍 Lote", placeholder="Ej: Lote 4", key=f"lote_{ced}", disabled=esta_reportado)
+                    with c2:
+                        labor_sel = st.selectbox("🛠️ Labor asignada", opciones_labores, key=f"lab_{ced}", disabled=esta_reportado)
+                    
+                    if st.session_state.get(f"last_lab_{ced}") != labor_sel:
+                        st.session_state[f"cant_{ced}"] = mapa_meta.get(labor_sel, 0.0)
+                        st.session_state[f"last_lab_{ced}"] = labor_sel
+
+                    unidad_auto = mapa_unid.get(labor_sel, "")
+                    with c3:
+                        etiqueta_cant = f"📦 Cantidad ({unidad_auto})" if unidad_auto else "📦 Cantidad"
+                        cant_sel = st.number_input(etiqueta_cant, min_value=0.0, step=1.0, key=f"cant_{ced}", disabled=esta_reportado)
+                    with c4:
+                        horas_sel = st.number_input("⏱️ Horas", min_value=0.0, max_value=24.0, step=0.5, value=8.0, key=f"hrs_{ced}", disabled=esta_reportado)
+                    with c5:
+                        obs_sel = st.text_input("📝 Observación", placeholder="Novedad opcional...", key=f"obs_{ced}", disabled=esta_reportado)
+
+                    param_auto = mapa_param.get(labor_sel, "Laborado")
+                    horas_final = 0.0 if ("Ausencia" in param_auto or "Descanso" in param_auto) else horas_sel
+
                     registros_pendientes.append({
                         "cedula": ced, "nombre": nom, "lote": lote_sel, "labor": labor_sel,
                         "cantidad": cant_sel, "unidad": unidad_auto, "horas": horas_final,
@@ -206,10 +244,6 @@ if perfil == "👷 1. Reporte Coordinadores":
                             st.rerun()
             else:
                 st.success("🎉 ¡Excelente! Ya completaste el reporte de todo tu personal para esta fecha.")
-
-elif perfil == "🗂️ 2. Control Secretaría":
-
-
 elif perfil == "🗂️ 2. Control Secretaría":
     st.title("🗂️ Control Diario y Consolidado Excel")
     fecha_consulta = st.date_input("Seleccione fecha a revisar:", value=date.today())
